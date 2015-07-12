@@ -125,8 +125,8 @@ pub type airspy_transfer = Struct_Unnamed6;
 #[repr(C)]
 #[derive(Copy)]
 pub struct Struct_Unnamed7 {
-    pub part_id: [uint32_t; 2usize],
-    pub serial_no: [uint32_t; 4usize],
+    pub part_id: [u32; 2usize],
+    pub serial_no: [u32; 4usize],
 }
 impl ::std::clone::Clone for Struct_Unnamed7 {
     fn clone(&self) -> Self { *self }
@@ -138,9 +138,9 @@ pub type airspy_read_partid_serialno_t = Struct_Unnamed7;
 #[repr(C)]
 #[derive(Copy)]
 pub struct Struct_Unnamed8 {
-    pub major_version: uint32_t,
-    pub minor_version: uint32_t,
-    pub revision: uint32_t,
+    pub major_version: u32,
+    pub minor_version: u32,
+    pub revision: u32,
 }
 impl ::std::clone::Clone for Struct_Unnamed8 {
     fn clone(&self) -> Self { *self }
@@ -158,15 +158,15 @@ extern "C" {
     pub fn airspy_init() -> ::libc::c_int;
     pub fn airspy_exit() -> ::libc::c_int;
     pub fn airspy_open_sn(device: *mut *mut Struct_airspy_device,
-                          serial_number: uint64_t) -> ::libc::c_int;
+                          serial_number: u64) -> ::libc::c_int;
     pub fn airspy_open(device: *mut *mut Struct_airspy_device)
      -> ::libc::c_int;
     pub fn airspy_close(device: *mut Struct_airspy_device) -> ::libc::c_int;
     pub fn airspy_get_samplerates(device: *mut Struct_airspy_device,
-                                  buffer: *mut uint32_t, len: uint32_t)
+                                  buffer: *mut u32, len: u32)
      -> ::libc::c_int;
     pub fn airspy_set_samplerate(device: *mut Struct_airspy_device,
-                                 samplerate: uint32_t) -> ::libc::c_int;
+                                 samplerate: u32) -> ::libc::c_int;
     pub fn airspy_start_rx(device: *mut Struct_airspy_device,
                            callback: airspy_sample_block_cb_fn,
                            rx_ctx: *mut ::libc::c_void) -> ::libc::c_int;
@@ -174,44 +174,44 @@ extern "C" {
     pub fn airspy_is_streaming(device: *mut Struct_airspy_device)
      -> ::libc::c_int;
     pub fn airspy_si5351c_write(device: *mut Struct_airspy_device,
-                                register_number: uint8_t, value: uint8_t)
+                                register_number: u8, value: u8)
      -> ::libc::c_int;
     pub fn airspy_si5351c_read(device: *mut Struct_airspy_device,
-                               register_number: uint8_t, value: *mut uint8_t)
+                               register_number: u8, value: *mut u8)
      -> ::libc::c_int;
     pub fn airspy_r820t_write(device: *mut Struct_airspy_device,
-                              register_number: uint8_t, value: uint8_t)
+                              register_number: u8, value: u8)
      -> ::libc::c_int;
     pub fn airspy_r820t_read(device: *mut Struct_airspy_device,
-                             register_number: uint8_t, value: *mut uint8_t)
+                             register_number: u8, value: *mut u8)
      -> ::libc::c_int;
     pub fn airspy_gpio_write(device: *mut Struct_airspy_device,
                              port: airspy_gpio_port_t, pin: airspy_gpio_pin_t,
-                             value: uint8_t) -> ::libc::c_int;
+                             value: u8) -> ::libc::c_int;
     pub fn airspy_gpio_read(device: *mut Struct_airspy_device,
                             port: airspy_gpio_port_t, pin: airspy_gpio_pin_t,
-                            value: *mut uint8_t) -> ::libc::c_int;
+                            value: *mut u8) -> ::libc::c_int;
     pub fn airspy_gpiodir_write(device: *mut Struct_airspy_device,
                                 port: airspy_gpio_port_t,
-                                pin: airspy_gpio_pin_t, value: uint8_t)
+                                pin: airspy_gpio_pin_t, value: u8)
      -> ::libc::c_int;
     pub fn airspy_gpiodir_read(device: *mut Struct_airspy_device,
                                port: airspy_gpio_port_t,
-                               pin: airspy_gpio_pin_t, value: *mut uint8_t)
+                               pin: airspy_gpio_pin_t, value: *mut u8)
      -> ::libc::c_int;
     pub fn airspy_spiflash_erase(device: *mut Struct_airspy_device)
      -> ::libc::c_int;
     pub fn airspy_spiflash_write(device: *mut Struct_airspy_device,
-                                 address: uint32_t, length: uint16_t,
+                                 address: u32, length: u16,
                                  data: *mut ::libc::c_uchar) -> ::libc::c_int;
     pub fn airspy_spiflash_read(device: *mut Struct_airspy_device,
-                                address: uint32_t, length: uint16_t,
+                                address: u32, length: u16,
                                 data: *mut ::libc::c_uchar) -> ::libc::c_int;
     pub fn airspy_board_id_read(device: *mut Struct_airspy_device,
-                                value: *mut uint8_t) -> ::libc::c_int;
+                                value: *mut u8) -> ::libc::c_int;
     pub fn airspy_version_string_read(device: *mut Struct_airspy_device,
                                       version: *mut ::libc::c_char,
-                                      length: uint8_t) -> ::libc::c_int;
+                                      length: u8) -> ::libc::c_int;
     pub fn airspy_board_partid_serialno_read(device:
                                                  *mut Struct_airspy_device,
                                              read_partid_serialno:
@@ -221,21 +221,21 @@ extern "C" {
                                   sample_type: Enum_airspy_sample_type)
      -> ::libc::c_int;
     pub fn airspy_set_freq(device: *mut Struct_airspy_device,
-                           freq_hz: uint32_t) -> ::libc::c_int;
+                           freq_hz: u32) -> ::libc::c_int;
     pub fn airspy_set_lna_gain(device: *mut Struct_airspy_device,
-                               value: uint8_t) -> ::libc::c_int;
+                               value: u8) -> ::libc::c_int;
     pub fn airspy_set_mixer_gain(device: *mut Struct_airspy_device,
-                                 value: uint8_t) -> ::libc::c_int;
+                                 value: u8) -> ::libc::c_int;
     pub fn airspy_set_vga_gain(device: *mut Struct_airspy_device,
-                               value: uint8_t) -> ::libc::c_int;
+                               value: u8) -> ::libc::c_int;
     pub fn airspy_set_lna_agc(device: *mut Struct_airspy_device,
-                              value: uint8_t) -> ::libc::c_int;
+                              value: u8) -> ::libc::c_int;
     pub fn airspy_set_mixer_agc(device: *mut Struct_airspy_device,
-                                value: uint8_t) -> ::libc::c_int;
-    pub fn airspy_set_rf_bias(dev: *mut Struct_airspy_device, value: uint8_t)
+                                value: u8) -> ::libc::c_int;
+    pub fn airspy_set_rf_bias(dev: *mut Struct_airspy_device, value: u8)
      -> ::libc::c_int;
     pub fn airspy_get_packing(device: *mut Struct_airspy_device,
-                              value: *mut uint8_t) -> ::libc::c_int;
+                              value: *mut u8) -> ::libc::c_int;
     pub fn airspy_error_name(errcode: Enum_airspy_error)
      -> *const ::libc::c_char;
     pub fn airspy_board_id_name(board_id: Enum_airspy_board_id)
