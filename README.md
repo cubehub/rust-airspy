@@ -52,9 +52,9 @@ Generate Rust bindings
 
     ./target/debug/bindgen -l airspy -match airspy.h -match airspy_commands.h -o ~/Development/rust-airspy/src/ffiairspy.rs ~/Downloads/airspy/libairspy/src/airspy.h
 
-Notice that there are still things like `uint32_t`, `uint8_t` etc in just generated ffiairspy.rs file. Replace them manually using your text editor.
+Notice that there are still things like `uint32_t`, `uint8_t` etc in just generated ffiairspy.rs file. Replace them manually using your text editor:
 
     uint64_t -> u64
     uint32_t -> u32
     uint16_t -> u16
-    uint8_t -> u8
+    uint8_t  -> u8
