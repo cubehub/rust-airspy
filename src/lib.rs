@@ -199,6 +199,22 @@ impl Airspy {
             }
         }
     }
+
+    pub fn set_frequency(&self, freq_hz: u32) -> Result<(), AirspyError> {
+        // 24 MHz to 1.8 GHz
+        if freq_hz < 24_000_000 || freq_hz > 1_8_00_000_000 {
+            Err(AirspyError::InvalidParam)
+        }
+        else {
+            match unsafe {ffiairspy::airspy_set_freq(self.device, freq_hz)} {
+                ffiairspy::AIRSPY_SUCCESS => Ok(()),
+                ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
+                err => {
+                    panic!("airspy_set_freq returned error {}", err)
+                }
+            }
+        }
+    }
 }
 
 impl Drop for Airspy {
