@@ -57,12 +57,12 @@ pub enum AirspySampleType {
     Float32IQ   = ffiairspy::AIRSPY_SAMPLE_FLOAT32_IQ as isize,
     /// 1 * 32bit float per sample
     Float32Real = ffiairspy::AIRSPY_SAMPLE_FLOAT32_REAL as isize,
-	/// 2 * 16bit int per sample
+    /// 2 * 16bit int per sample
     Int16IQ     = ffiairspy::AIRSPY_SAMPLE_INT16_IQ as isize,
     /// 1 * 16bit int per sample
-	Int16Real   = ffiairspy::AIRSPY_SAMPLE_INT16_REAL as isize,
+    Int16Real   = ffiairspy::AIRSPY_SAMPLE_INT16_REAL as isize,
     /// 1 * 16bit unsigned int per sample
-	Uint16Real  = ffiairspy::AIRSPY_SAMPLE_UINT16_REAL as isize,
+    Uint16Real  = ffiairspy::AIRSPY_SAMPLE_UINT16_REAL as isize,
 }
 
 pub struct Airspy {
@@ -106,15 +106,16 @@ impl Airspy {
         }
 
         let sr = samplerate.clone() as u32;
-        let mut samplerate_found = false;
-        for (index, rate) in samplerates.iter().enumerate() {
+        let mut index: Option<u32> = None;
+        for (i, rate) in samplerates.iter().enumerate() {
             if *rate == sr {
-                samplerate_found = true;
+                index = Some(i as u32);
                 break;
             }
         }
 
-        if samplerate_found {
+        if index.is_some() {
+            let error = unsafe {ffiairspy::airspy_set_samplerate(self.device, index.unwrap())};
             match error {
                 ffiairspy::AIRSPY_SUCCESS => Ok(()),
                 ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
@@ -136,6 +137,21 @@ impl Airspy {
                 // however just in case panic here if for some reason it does anything else
                 panic!("airspy_set_sample_type returned error {}", err)
             },
+        }
+    }
+
+    pub fn set_bias_tee(&self, onoff: bool) -> Result<(), AirspyError> {
+        let c_onoff = match onoff {
+            true => 1,
+            false => 0,
+        };
+
+        match unsafe {ffiairspy::airspy_set_rf_bias(self.device, c_onoff)} {
+            ffiairspy::AIRSPY_SUCCESS => Ok(()),
+            ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
+            err => {
+                panic!("airspy_set_rf_bias returned error {}", err)
+            }
         }
     }
 }
