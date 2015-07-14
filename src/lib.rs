@@ -65,18 +65,67 @@ pub enum AirspySampleType {
     Uint16Real  = ffiairspy::AIRSPY_SAMPLE_UINT16_REAL as isize,
 }
 
-pub struct Airspy {
-    device: *mut ffiairspy::Struct_airspy_device,
+#[repr(C)]
+pub struct IQ<T> {
+    i: T,
+    q: T,
 }
 
-impl Airspy {
+pub trait AirspySupportedType {
+    fn get_sample_type() -> u32;
+}
 
-    pub fn new() -> Result<Airspy, AirspyError> {
+impl AirspySupportedType for IQ<f32> {
+    fn get_sample_type() -> u32 {
+        ffiairspy::AIRSPY_SAMPLE_FLOAT32_IQ
+    }
+}
+impl AirspySupportedType for f32 {
+    fn get_sample_type() -> u32 {
+        ffiairspy::AIRSPY_SAMPLE_FLOAT32_REAL
+    }
+}
+impl AirspySupportedType for i16 {
+    fn get_sample_type() -> u32 {
+        ffiairspy::AIRSPY_SAMPLE_INT16_REAL
+    }
+}
+impl AirspySupportedType for IQ<i16> {
+    fn get_sample_type() -> u32 {
+        ffiairspy::AIRSPY_SAMPLE_INT16_IQ
+    }
+}
+impl AirspySupportedType for u16 {
+    fn get_sample_type() -> u32 {
+        ffiairspy::AIRSPY_SAMPLE_UINT16_REAL
+    }
+}
+
+pub struct Airspy<T: AirspySupportedType> {
+    device: *mut ffiairspy::Struct_airspy_device,
+    samples: Vec<T>,
+}
+
+impl<T: AirspySupportedType> Airspy<T> {
+    pub fn new() -> Result<Airspy<T>, AirspyError> {
         let mut device = ptr::null_mut();
 
         let error = unsafe {ffiairspy::airspy_open(&mut device)};
         match error {
-            ffiairspy::AIRSPY_SUCCESS => Ok(Airspy {device: device}),
+            ffiairspy::AIRSPY_SUCCESS => {
+                let airspy = Airspy{device: device, samples: Vec::<T>::new()};
+
+                match unsafe {ffiairspy::airspy_set_sample_type(device, T::get_sample_type())} {
+                    ffiairspy::AIRSPY_SUCCESS => {
+                        Ok(airspy)
+                    },
+                    err => {
+                        // airspy_set_sample_type should only return SUCCESS
+                        // however just in case panic here if for some reason it does anything else
+                        panic!("airspy_set_sample_type returned error {}", err)
+                    },
+                }
+            },
             ffiairspy::AIRSPY_ERROR_NO_MEM => Err(AirspyError::NoMem),
             ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
             err => panic!("airspy_open returned error ({:})", err),
@@ -127,19 +176,6 @@ impl Airspy {
         }
     }
 
-    pub fn set_sample_type(&self, sampletype: AirspySampleType) -> Result<(), AirspyError> {
-        match unsafe {ffiairspy::airspy_set_sample_type(self.device, sampletype as u32)} {
-            ffiairspy::AIRSPY_SUCCESS => {
-                Ok(())
-            },
-            err => {
-                // airspy_set_sample_type should only return SUCCESS
-                // however just in case panic here if for some reason it does anything else
-                panic!("airspy_set_sample_type returned error {}", err)
-            },
-        }
-    }
-
     pub fn set_bias_tee(&self, onoff: bool) -> Result<(), AirspyError> {
         let c_onoff = match onoff {
             true => 1,
@@ -163,9 +199,7 @@ impl Airspy {
             match unsafe {ffiairspy::airspy_set_lna_gain(self.device, gain)} {
                 ffiairspy::AIRSPY_SUCCESS => Ok(()),
                 ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
-                err => {
-                    panic!("airspy_set_lna_gain returned error {}", err)
-                }
+                err => panic!("airspy_set_lna_gain returned error {}", err),
             }
         }
     }
@@ -178,9 +212,7 @@ impl Airspy {
             match unsafe {ffiairspy::airspy_set_mixer_gain(self.device, gain)} {
                 ffiairspy::AIRSPY_SUCCESS => Ok(()),
                 ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
-                err => {
-                    panic!("airspy_set_mixer_gain returned error {}", err)
-                }
+                err => panic!("airspy_set_mixer_gain returned error {}", err)
             }
         }
     }
@@ -193,9 +225,7 @@ impl Airspy {
             match unsafe {ffiairspy::airspy_set_vga_gain(self.device, gain)} {
                 ffiairspy::AIRSPY_SUCCESS => Ok(()),
                 ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
-                err => {
-                    panic!("airspy_set_vga_gain returned error {}", err)
-                }
+                err => panic!("airspy_set_vga_gain returned error {}", err),
             }
         }
     }
@@ -209,15 +239,27 @@ impl Airspy {
             match unsafe {ffiairspy::airspy_set_freq(self.device, freq_hz)} {
                 ffiairspy::AIRSPY_SUCCESS => Ok(()),
                 ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
-                err => {
-                    panic!("airspy_set_freq returned error {}", err)
-                }
+                err => panic!("airspy_set_freq returned error {}", err),
             }
         }
     }
+
+    pub fn start_rx(&self) -> Result<(), AirspyError> {
+        match unsafe {ffiairspy::airspy_start_rx(self.device, Some(Self::receive), ptr::null_mut())} {
+            ffiairspy::AIRSPY_SUCCESS => Ok(()),
+            ffiairspy::AIRSPY_ERROR_BUSY => Err(AirspyError::Busy),
+            ffiairspy::AIRSPY_ERROR_THREAD => Err(AirspyError::Thread),
+            err => panic!("airspy_start_rx returned error {}", err),
+        }
+    }
+
+    extern "C" fn receive(transfer: *mut ffiairspy::airspy_transfer) -> libc::c_int {
+        info!("receive");
+        0
+    }
 }
 
-impl Drop for Airspy {
+impl<T: AirspySupportedType> Drop for Airspy<T> {
     fn drop(&mut self) {
         unsafe{ffiairspy::airspy_close(self.device)};
         unsafe{ffiairspy::airspy_exit()};
