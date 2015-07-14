@@ -34,36 +34,35 @@ use std::ptr;
 
 #[derive(Debug)]
 pub enum AirspyError {
-    InvalidParam,
-    NotFound,
-    Busy,
-    NoMem,
-    LibUsb,
-    Thread,
-    StreamingThreadErr,
-    StreamingStopped,
-    Other,
-}
-
-fn convert_to_airspy_error(error: i32) -> AirspyError {
-    match error {
-        ffiairspy::AIRSPY_ERROR_INVALID_PARAM => AirspyError::InvalidParam,
-        ffiairspy::AIRSPY_ERROR_NOT_FOUND => AirspyError::NotFound,
-        ffiairspy::AIRSPY_ERROR_BUSY => AirspyError::Busy,
-        ffiairspy::AIRSPY_ERROR_NO_MEM => AirspyError::NoMem,
-        ffiairspy::AIRSPY_ERROR_LIBUSB => AirspyError::LibUsb,
-        ffiairspy::AIRSPY_ERROR_THREAD => AirspyError::Thread,
-        ffiairspy::AIRSPY_ERROR_STREAMING_THREAD_ERR => AirspyError::StreamingThreadErr,
-        ffiairspy::AIRSPY_ERROR_STREAMING_STOPPED => AirspyError::StreamingStopped,
-        ffiairspy::AIRSPY_ERROR_OTHER => AirspyError::Other,
-        err => panic!("unknown airspy error code ({})", err),
-    }
+    InvalidParam       = ffiairspy::AIRSPY_ERROR_INVALID_PARAM as isize,
+    NotFound           = ffiairspy::AIRSPY_ERROR_NOT_FOUND as isize,
+    Busy               = ffiairspy::AIRSPY_ERROR_BUSY as isize,
+    NoMem              = ffiairspy::AIRSPY_ERROR_NO_MEM as isize,
+    LibUsb             = ffiairspy::AIRSPY_ERROR_LIBUSB as isize,
+    Thread             = ffiairspy::AIRSPY_ERROR_THREAD as isize,
+    StreamingThreadErr = ffiairspy::AIRSPY_ERROR_STREAMING_THREAD_ERR as isize,
+    StreamingStopped   = ffiairspy::AIRSPY_ERROR_STREAMING_STOPPED as isize,
+    Other              = ffiairspy::AIRSPY_ERROR_OTHER as isize,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub enum AirspySamplerate {
     Sps10000000 = 10_000_000,
     Sps2500000  =  2_500_000,
+}
+
+#[derive(Debug)]
+pub enum AirspySampleType {
+    /// 2 * 32bit float per sample
+    Float32IQ   = ffiairspy::AIRSPY_SAMPLE_FLOAT32_IQ as isize,
+    /// 1 * 32bit float per sample
+    Float32Real = ffiairspy::AIRSPY_SAMPLE_FLOAT32_REAL as isize,
+	/// 2 * 16bit int per sample
+    Int16IQ     = ffiairspy::AIRSPY_SAMPLE_INT16_IQ as isize,
+    /// 1 * 16bit int per sample
+	Int16Real   = ffiairspy::AIRSPY_SAMPLE_INT16_REAL as isize,
+    /// 1 * 16bit unsigned int per sample
+	Uint16Real  = ffiairspy::AIRSPY_SAMPLE_UINT16_REAL as isize,
 }
 
 pub struct Airspy {
@@ -78,13 +77,13 @@ impl Airspy {
         let error = unsafe {ffiairspy::airspy_open(&mut device)};
         match error {
             ffiairspy::AIRSPY_SUCCESS => Ok(Airspy {device: device}),
-            ffiairspy::AIRSPY_ERROR_NO_MEM => Err(convert_to_airspy_error(ffiairspy::AIRSPY_ERROR_NO_MEM)),
-            ffiairspy::AIRSPY_ERROR_LIBUSB => Err(convert_to_airspy_error(ffiairspy::AIRSPY_ERROR_LIBUSB)),
+            ffiairspy::AIRSPY_ERROR_NO_MEM => Err(AirspyError::NoMem),
+            ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
             err => panic!("airspy_open returned error ({:})", err),
         }
     }
 
-    pub fn set_samplerate(&self, samplerate: AirspySamplerate) -> Result<(), AirspyError>{
+    pub fn set_samplerate(&self, samplerate: AirspySamplerate) -> Result<(), AirspyError> {
         let mut supported_samplerates_count: u32 = 0;
 
         // get count of supported samplerates
@@ -94,6 +93,8 @@ impl Airspy {
             ffiairspy::AIRSPY_SUCCESS => {},
             err => panic!("airspy_get_samplerates returned error ({:})", err),
         }
+
+        assert!(supported_samplerates_count == ffiairspy::AIRSPY_SAMPLERATE_END);
 
         // get list of supported samplerates
         let mut samplerates: Vec<u32> = vec![0_u32; supported_samplerates_count as usize];
@@ -105,19 +106,35 @@ impl Airspy {
         }
 
         let sr = samplerate.clone() as u32;
-        // binary search assumes sorted list
-        samplerates.sort();
-        match samplerates.binary_search(&sr) {
-            Ok(index) => {
-                let error = unsafe {ffiairspy::airspy_set_samplerate(self.device, index as u32)};
-                match error {
-                    ffiairspy::AIRSPY_SUCCESS => Ok(()),
-                    ffiairspy::AIRSPY_ERROR_LIBUSB => Err(convert_to_airspy_error(ffiairspy::AIRSPY_ERROR_LIBUSB)),
-                    err => panic!("airspy_set_samplerate returned error ({:})", err),
-                }
+        let mut samplerate_found = false;
+        for (index, rate) in samplerates.iter().enumerate() {
+            if *rate == sr {
+                samplerate_found = true;
+                break;
+            }
+        }
+
+        if samplerate_found {
+            match error {
+                ffiairspy::AIRSPY_SUCCESS => Ok(()),
+                ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
+                err => panic!("airspy_set_samplerate returned error ({:})", err),
+            }
+        }
+        else {
+            panic!("samplerate {:?} not supported by libairspy, supported samplerates are {:?}", samplerate, samplerates);
+        }
+    }
+
+    pub fn set_sample_type(&self, sampletype: AirspySampleType) -> Result<(), AirspyError> {
+        match unsafe {ffiairspy::airspy_set_sample_type(self.device, sampletype as u32)} {
+            ffiairspy::AIRSPY_SUCCESS => {
+                Ok(())
             },
-            Err(_) => {
-                panic!("samplerate {:?} not supported by libairspy, supported samplerates are {:?}", samplerate, samplerates)
+            err => {
+                // airspy_set_sample_type should only return SUCCESS
+                // however just in case panic here if for some reason it does anything else
+                panic!("airspy_set_sample_type returned error {}", err)
             },
         }
     }
