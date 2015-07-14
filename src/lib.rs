@@ -154,6 +154,51 @@ impl Airspy {
             }
         }
     }
+
+    pub fn set_lna_gain(&self, gain: u8) -> Result<(), AirspyError> {
+        if gain > 15 {
+            Err(AirspyError::InvalidParam)
+        }
+        else {
+            match unsafe {ffiairspy::airspy_set_lna_gain(self.device, gain)} {
+                ffiairspy::AIRSPY_SUCCESS => Ok(()),
+                ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
+                err => {
+                    panic!("airspy_set_lna_gain returned error {}", err)
+                }
+            }
+        }
+    }
+
+    pub fn set_mixer_gain(&self, gain: u8) -> Result<(), AirspyError> {
+        if gain > 15 {
+            Err(AirspyError::InvalidParam)
+        }
+        else {
+            match unsafe {ffiairspy::airspy_set_mixer_gain(self.device, gain)} {
+                ffiairspy::AIRSPY_SUCCESS => Ok(()),
+                ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
+                err => {
+                    panic!("airspy_set_mixer_gain returned error {}", err)
+                }
+            }
+        }
+    }
+
+    pub fn set_vga_gain(&self, gain: u8) -> Result<(), AirspyError> {
+        if gain > 15 {
+            Err(AirspyError::InvalidParam)
+        }
+        else {
+            match unsafe {ffiairspy::airspy_set_vga_gain(self.device, gain)} {
+                ffiairspy::AIRSPY_SUCCESS => Ok(()),
+                ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
+                err => {
+                    panic!("airspy_set_vga_gain returned error {}", err)
+                }
+            }
+        }
+    }
 }
 
 impl Drop for Airspy {
