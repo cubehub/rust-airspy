@@ -25,12 +25,14 @@
 #[macro_use]
 extern crate log;
 extern crate libc;
+use libc::{c_int, c_void};
 
 #[allow(non_camel_case_types)]
 pub mod ffiairspy;
 
 use std::mem;
 use std::ptr;
+use std::slice;
 
 #[derive(Debug)]
 pub enum AirspyError {
@@ -66,47 +68,51 @@ pub enum AirspySampleType {
 }
 
 #[repr(C)]
+#[derive(Debug, Copy, Clone)]
 pub struct IQ<T> {
     i: T,
     q: T,
 }
 
-pub trait AirspySupportedType {
+pub trait AirspySupportedType<T> {
     fn get_sample_type() -> u32;
+    fn rawbuf_to_vec(rawbuf: *mut c_void, len: usize) -> Vec<T>;
 }
 
-impl AirspySupportedType for IQ<f32> {
-    fn get_sample_type() -> u32 {
-        ffiairspy::AIRSPY_SAMPLE_FLOAT32_IQ
-    }
-}
-impl AirspySupportedType for f32 {
-    fn get_sample_type() -> u32 {
-        ffiairspy::AIRSPY_SAMPLE_FLOAT32_REAL
-    }
-}
-impl AirspySupportedType for i16 {
-    fn get_sample_type() -> u32 {
-        ffiairspy::AIRSPY_SAMPLE_INT16_REAL
-    }
-}
-impl AirspySupportedType for IQ<i16> {
-    fn get_sample_type() -> u32 {
-        ffiairspy::AIRSPY_SAMPLE_INT16_IQ
-    }
-}
-impl AirspySupportedType for u16 {
-    fn get_sample_type() -> u32 {
-        ffiairspy::AIRSPY_SAMPLE_UINT16_REAL
-    }
+macro_rules! impl_airspy_supported_type {
+    ($typ:ty, $sample_type:expr) => {
+        impl AirspySupportedType<$typ> for $typ {
+            fn get_sample_type() -> u32 {
+                $sample_type
+            }
+
+            fn rawbuf_to_vec(rawbuf: *mut c_void, len: usize) -> Vec<$typ> {
+                let slice: &[$typ] = unsafe {
+                        slice::from_raw_parts(rawbuf as *mut $typ, len)
+                };
+                slice.to_vec()
+            }
+        }
+    };
 }
 
-pub struct Airspy<T: AirspySupportedType> {
+impl_airspy_supported_type!(IQ<f32>, ffiairspy::AIRSPY_SAMPLE_FLOAT32_IQ);
+impl_airspy_supported_type!(f32,     ffiairspy::AIRSPY_SAMPLE_FLOAT32_REAL);
+impl_airspy_supported_type!(IQ<i16>, ffiairspy::AIRSPY_SAMPLE_INT16_IQ);
+impl_airspy_supported_type!(i16,     ffiairspy::AIRSPY_SAMPLE_INT16_REAL);
+impl_airspy_supported_type!(u16,     ffiairspy::AIRSPY_SAMPLE_UINT16_REAL);
+
+pub struct Airspy<T: AirspySupportedType<T>> {
     device: *mut ffiairspy::Struct_airspy_device,
     samples: Vec<T>,
 }
 
-impl<T: AirspySupportedType> Airspy<T> {
+impl<T: AirspySupportedType<T>> Airspy<T> {
+
+    fn context(&mut self) -> *mut c_void {
+        self as *mut _ as *mut c_void
+    }
+
     pub fn new() -> Result<Airspy<T>, AirspyError> {
         let mut device = ptr::null_mut();
 
@@ -244,8 +250,8 @@ impl<T: AirspySupportedType> Airspy<T> {
         }
     }
 
-    pub fn start_rx(&self) -> Result<(), AirspyError> {
-        match unsafe {ffiairspy::airspy_start_rx(self.device, Some(Self::receive), ptr::null_mut())} {
+    pub fn start_rx(&mut self) -> Result<(), AirspyError> {
+        match unsafe {ffiairspy::airspy_start_rx(self.device, Some(Self::receive), self.context())} {
             ffiairspy::AIRSPY_SUCCESS => Ok(()),
             ffiairspy::AIRSPY_ERROR_BUSY => Err(AirspyError::Busy),
             ffiairspy::AIRSPY_ERROR_THREAD => Err(AirspyError::Thread),
@@ -253,13 +259,20 @@ impl<T: AirspySupportedType> Airspy<T> {
         }
     }
 
-    extern "C" fn receive(transfer: *mut ffiairspy::airspy_transfer) -> libc::c_int {
-        info!("receive");
+    extern "C" fn receive(transfer: *mut ffiairspy::airspy_transfer) -> c_int {
+        let transfer: &mut ffiairspy::airspy_transfer = unsafe {mem::transmute(transfer)};
+        assert!(!transfer.ctx.is_null());
+        info!("samplecount: {}", transfer.sample_count);
+        assert!(transfer.sample_count == 131072 || transfer.sample_count == 65536);
+
+        let selfclient : &mut Self = unsafe {mem::transmute(transfer.ctx)};
+        selfclient.samples = T::rawbuf_to_vec(transfer.samples, transfer.sample_count as usize);
+
         0
     }
 }
 
-impl<T: AirspySupportedType> Drop for Airspy<T> {
+impl<T: AirspySupportedType<T>> Drop for Airspy<T> {
     fn drop(&mut self) {
         unsafe{ffiairspy::airspy_close(self.device)};
         unsafe{ffiairspy::airspy_exit()};
