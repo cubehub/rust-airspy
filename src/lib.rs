@@ -26,6 +26,8 @@
 extern crate log;
 extern crate libc;
 use libc::{c_int, c_void};
+extern crate ipc;
+use ipc::Semaphore;
 
 #[allow(non_camel_case_types)]
 pub mod ffiairspy;
@@ -76,7 +78,8 @@ pub struct IQ<T> {
 
 pub trait AirspySupportedType<T> {
     fn get_sample_type() -> u32;
-    fn rawbuf_to_vec(rawbuf: *mut c_void, len: usize) -> Vec<T>;
+    fn sample_buf_to_vec(sample_buf: *mut c_void, sample_count: usize) -> Vec<T>;
+    fn sample_vec_to_bytes(samples: &Vec<T>) -> &[u8];
 }
 
 macro_rules! impl_airspy_supported_type {
@@ -86,11 +89,29 @@ macro_rules! impl_airspy_supported_type {
                 $sample_type
             }
 
-            fn rawbuf_to_vec(rawbuf: *mut c_void, len: usize) -> Vec<$typ> {
+            fn sample_buf_to_vec(sample_buf: *mut c_void, sample_count: usize) -> Vec<$typ> {
                 let slice: &[$typ] = unsafe {
-                        slice::from_raw_parts(rawbuf as *mut $typ, len)
+                    slice::from_raw_parts(sample_buf as *mut $typ, sample_count)
                 };
                 slice.to_vec()
+            }
+
+            fn sample_vec_to_bytes(samples: &Vec<$typ>) -> &[u8] {
+                let slice = &samples[..];
+                let bytes_in_sample = match $sample_type {
+                    ffiairspy::AIRSPY_SAMPLE_FLOAT32_IQ => 8,
+                    ffiairspy::AIRSPY_SAMPLE_FLOAT32_REAL => 4,
+                    ffiairspy::AIRSPY_SAMPLE_INT16_IQ => 4,
+                    ffiairspy::AIRSPY_SAMPLE_INT16_REAL => 2,
+                    ffiairspy::AIRSPY_SAMPLE_UINT16_REAL => 2,
+                    _ => panic!("wrong sample type!"),
+                };
+
+                let sliceu8: &[u8] = unsafe {
+                    slice::from_raw_parts(slice.as_ptr() as *mut u8, samples.len() * bytes_in_sample)
+                };
+
+                sliceu8
             }
         }
     };
@@ -103,8 +124,10 @@ impl_airspy_supported_type!(i16,     ffiairspy::AIRSPY_SAMPLE_INT16_REAL);
 impl_airspy_supported_type!(u16,     ffiairspy::AIRSPY_SAMPLE_UINT16_REAL);
 
 pub struct Airspy<T: AirspySupportedType<T>> {
-    device: *mut ffiairspy::Struct_airspy_device,
-    samples: Vec<T>,
+    device    : *mut ffiairspy::Struct_airspy_device,
+    samples   : Vec<Vec<T>>,
+    empty_sem : Semaphore,
+    full_sem : Semaphore,
 }
 
 impl<T: AirspySupportedType<T>> Airspy<T> {
@@ -119,7 +142,11 @@ impl<T: AirspySupportedType<T>> Airspy<T> {
         let error = unsafe {ffiairspy::airspy_open(&mut device)};
         match error {
             ffiairspy::AIRSPY_SUCCESS => {
-                let airspy = Airspy{device: device, samples: Vec::<T>::new()};
+                let airspy = Airspy {device: device,
+                                    samples: Vec::<Vec<T>>::with_capacity(2),
+                                    empty_sem: Semaphore::new("empty_count", 2).unwrap(),
+                                    full_sem: Semaphore::new("full_count", 0).unwrap(),
+                };
 
                 match unsafe {ffiairspy::airspy_set_sample_type(device, T::get_sample_type())} {
                     ffiairspy::AIRSPY_SUCCESS => {
@@ -262,13 +289,46 @@ impl<T: AirspySupportedType<T>> Airspy<T> {
     extern "C" fn receive(transfer: *mut ffiairspy::airspy_transfer) -> c_int {
         let transfer: &mut ffiairspy::airspy_transfer = unsafe {mem::transmute(transfer)};
         assert!(!transfer.ctx.is_null());
-        info!("samplecount: {}", transfer.sample_count);
         assert!(transfer.sample_count == 131072 || transfer.sample_count == 65536);
 
         let selfclient : &mut Self = unsafe {mem::transmute(transfer.ctx)};
-        selfclient.samples = T::rawbuf_to_vec(transfer.samples, transfer.sample_count as usize);
+
+        // mutex here?
+        // actually it currently does not use double buffering
+        selfclient.empty_sem.acquire();
+        selfclient.samples.push(T::sample_buf_to_vec(transfer.samples, transfer.sample_count as usize));
+        selfclient.full_sem.release();
 
         0
+    }
+
+    pub fn samples(&mut self) -> AirspyIntoIterator<T> {
+        AirspyIntoIterator {
+            airspy: self,
+        }
+    }
+
+    pub fn convert_samples_to_bytes<'a>(samples: &'a Vec<T>) -> &[u8] {
+        T::sample_vec_to_bytes(samples)
+    }
+}
+
+pub struct AirspyIntoIterator<'a, T: AirspySupportedType<T> + 'a> {
+    airspy: &'a mut Airspy<T>,
+}
+
+impl <'a, T: AirspySupportedType<T>>Iterator for AirspyIntoIterator<'a, T> {
+    type Item = Vec<T>;
+    fn next(&mut self) -> Option<Vec<T>> {
+        // mutex here?
+        self.airspy.full_sem.acquire();
+        if self.airspy.samples.len() > 0 {
+            self.airspy.empty_sem.release();
+            Some(self.airspy.samples.remove(0))
+        }
+        else {
+            None
+        }
     }
 }
 

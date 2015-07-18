@@ -9,3 +9,6 @@ log = "*"
 
 fern = "*"
 time = "*"
+
+[dependencies.ipc]
+git = "https://github.com/alexcrichton/ipc-rs"
