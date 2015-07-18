@@ -286,6 +286,14 @@ impl<T: AirspySupportedType<T>> Airspy<T> {
         }
     }
 
+    pub fn stop_rx(&mut self) -> Result<(), AirspyError> {
+        match unsafe {ffiairspy::airspy_stop_rx(self.device)} {
+            ffiairspy::AIRSPY_SUCCESS => Ok(()),
+            ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
+            err => panic!("airspy_stop_rx returned error {}", err),
+        }
+    }
+
     extern "C" fn receive(transfer: *mut ffiairspy::airspy_transfer) -> c_int {
         let transfer: &mut ffiairspy::airspy_transfer = unsafe {mem::transmute(transfer)};
         assert!(!transfer.ctx.is_null());
