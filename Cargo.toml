@@ -1,6 +1,6 @@
 [package]
 name = "airspy"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Andres Vahter <andres.vahter@gmail.com>"]
 
 [dependencies]
@@ -9,6 +9,3 @@ log = "*"
 
 fern = "*"
 time = "*"
-
-[dependencies.ipc]
-git = "https://github.com/alexcrichton/ipc-rs"
