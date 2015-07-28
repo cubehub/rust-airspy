@@ -25,6 +25,8 @@
 #[macro_use]
 extern crate log;
 extern crate libc;
+extern crate num;
+use num::complex::Complex;
 use libc::{c_int, c_void};
 
 #[allow(non_camel_case_types)]
@@ -68,13 +70,6 @@ pub enum AirspySampleType {
     Uint16Real  = ffiairspy::AIRSPY_SAMPLE_UINT16_REAL as isize,
 }
 
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct IQ<T> {
-    i: T,
-    q: T,
-}
-
 pub trait AirspySupportedType<T> {
     fn get_sample_type() -> u32;
     fn sample_buf_to_vec(sample_buf: *mut c_void, sample_count: usize) -> Vec<T>;
@@ -116,9 +111,9 @@ macro_rules! impl_airspy_supported_type {
     };
 }
 
-impl_airspy_supported_type!(IQ<f32>, ffiairspy::AIRSPY_SAMPLE_FLOAT32_IQ);
+impl_airspy_supported_type!(Complex<f32>, ffiairspy::AIRSPY_SAMPLE_FLOAT32_IQ);
 impl_airspy_supported_type!(f32,     ffiairspy::AIRSPY_SAMPLE_FLOAT32_REAL);
-impl_airspy_supported_type!(IQ<i16>, ffiairspy::AIRSPY_SAMPLE_INT16_IQ);
+impl_airspy_supported_type!(Complex<i16>, ffiairspy::AIRSPY_SAMPLE_INT16_IQ);
 impl_airspy_supported_type!(i16,     ffiairspy::AIRSPY_SAMPLE_INT16_REAL);
 impl_airspy_supported_type!(u16,     ffiairspy::AIRSPY_SAMPLE_UINT16_REAL);
 

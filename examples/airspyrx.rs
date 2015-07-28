@@ -2,12 +2,13 @@
 extern crate airspy;
 use airspy::Airspy;
 use airspy::AirspySamplerate;
-use airspy::{IQ};
 
 #[macro_use]
 extern crate log;
 extern crate fern;
 extern crate time;
+extern crate num;
+use num::complex::Complex;
 
 use std::io;
 use std::io::Write;
@@ -40,7 +41,7 @@ fn main() {
         info!("frequency: {:.3} MHz", frequency_hz as f64/1000_000f64);
     }
 
-    match Airspy::<IQ<i16>>::new() {
+    match Airspy::<Complex<i16>>::new() {
         Ok(mut device) => {
             info!("device opened sucessfully");
             device.set_samplerate(AirspySamplerate::Sps2500000).unwrap();
