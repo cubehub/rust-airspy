@@ -32,7 +32,14 @@ extern crate airspy;
 
 Connect AirSpy SDR to your computer and run the [example](https://github.com/cubehub/rust-airspy/blob/master/examples/airspyrx.rs):
 
-    cargo run --example airspyrx
+    cargo build --example airspyrx
+    ./target/release/examples/airspyrx > /dev/null
+
+This example program can be used to listen FM radio. Make sure [demod](https://github.com/cubehub/demod) and [sox](https://github.com/uklauer/sox) are installed.
+NB: On Mac OS X use `play` and on Linux use `aplay`. This pipeline plays FM radio at 103.4 MHz:
+
+    ./target/release/examples/airspyrx 103.4 | demod --samplerate 2500000 --resamplerate 230400 --intype i16 --outtype i16 --bandwidth 100000 fm --deviation 75000 | play -t raw -r 230.4k -e signed-integer -b16 -c 1 -V1 -
+
 
 ## For rust-airspy developers
 
