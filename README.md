@@ -19,7 +19,7 @@ Put this in your `Cargo.toml`:
 
 ```toml
 [dependencies.airspy]
-git = "https://git@github.com:cubehub/rust-airspy.git"
+git = "https://github.com/cubehub/rust-airspy.git"
 ```
 
 And this in your crate root:
