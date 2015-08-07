@@ -37,7 +37,7 @@ fn main() {
         info!("use default frequency: {:.3} MHz", frequency_hz as f64/1000_000f64);
     }
     else {
-        frequency_hz = (args.nth(1).unwrap().parse::<f32>().unwrap() as f64 * 1000_000f64) as u32;
+        frequency_hz = (args.nth(1).unwrap().parse::<f64>().unwrap() * 1000_000f64) as u32;
         info!("frequency: {:.3} MHz", frequency_hz as f64/1000_000f64);
     }
 
