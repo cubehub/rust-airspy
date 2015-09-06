@@ -154,6 +154,7 @@ impl<T: AirspySupportedType<T>> Airspy<T> {
             },
             ffiairspy::AIRSPY_ERROR_NO_MEM => Err(AirspyError::NoMem),
             ffiairspy::AIRSPY_ERROR_LIBUSB => Err(AirspyError::LibUsb),
+            ffiairspy::AIRSPY_ERROR_NOT_FOUND => Err(AirspyError::NotFound),
             err => panic!("airspy_open returned error ({:})", err),
         }
     }
